@@ -69,10 +69,15 @@ pre{margin:0;white-space:pre-wrap;font:14px/1.5 ui-monospace,Menlo,Consolas,mono
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
 details{margin-top:12px}
 summary{cursor:pointer;font-weight:600}
+.note{background:var(--soft);border-left:4px solid var(--knn);padding:12px 16px;border-radius:10px;margin-top:14px;font-size:15px}
+.draw{stroke-dasharray:1;stroke-dashoffset:1;animation:dr 1.1s ease-out forwards}
+.fade{animation:fi .9s ease-out both}
+@keyframes dr{to{stroke-dashoffset:0}}
+@keyframes fi{from{opacity:0}}
 footer{padding:30px 0 60px;color:var(--muted);font-size:14px;text-align:center;border-top:1px solid var(--line)}
 figure{margin:0 0 20px}figure img{width:100%;border-radius:12px;border:1px solid var(--line)}
 figcaption{color:var(--muted);font-size:14px;margin-top:6px}
-@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}.draw{stroke-dashoffset:0}}
 </style>
 </head>
 <body>
@@ -96,7 +101,7 @@ figcaption{color:var(--muted);font-size:14px;margin-top:6px}
   <figcaption>Figure 1 from the paper: Qwen3-8B on HeadQA. At layer 23 the representations overlap; one layer later, class clusters appear.</figcaption>
 </figure>
 
-<div class="tldr"><b>TL;DR.</b> Across five LLMs, isotropy rises through the early layers, peaks, then <b>drops sharply</b> at a critical layer. Task-relevant clusters appear at that exact layer, and the <b>steepness of the drop predicts accuracy</b>.</div>
+<div class="tldr"><b>TL;DR.</b> Across five LLMs, isotropy rises through the early layers, peaks, then <b>drops sharply</b> at a critical layer. Task-relevant clusters appear at that exact layer, and the <b>steepness of the drop predicts accuracy</b>. Preventing the cliff by intervening at layer <i>L</i>+1 wipes out the clusters and cuts accuracy by up to 38 points.</div>
 
 <div class="stats">
   <div class="stat"><b>5</b><small>open-weight LLMs</small></div>
@@ -106,11 +111,12 @@ figcaption{color:var(--muted);font-size:14px;margin-top:6px}
 </div>
 
 <section>
-  <h2>Three takeaways</h2>
+  <h2>Key takeaways</h2>
   <div class="take">
     <div class="card"><span class="n">01</span><b>A cliff, not a slope</b>IsoScore climbs to a peak at layer <i>L</i>, then falls sharply at <i>L</i>+1. ID instead shows a gradual hump.</div>
     <div class="card"><span class="n">02</span><b>Clusters form right there</b>The k-NN score jumps and CKA dips at the same layers: a one-step reorganization of the representation space.</div>
     <div class="card"><span class="n">03</span><b>Steepness predicts accuracy</b>Bigger drops go with higher accuracy, across prompt formats and 0/2/4-shot, and beat intrinsic dimension as a predictor.</div>
+    <div class="card"><span class="n">04</span><b>It is causal</b>Removing the top principal components at layer <i>L</i>+1 prevents the cliff, destroys the clusters, and cuts accuracy by up to 38 points.</div>
   </div>
 </section>
 
@@ -182,6 +188,46 @@ figcaption{color:var(--muted);font-size:14px;margin-top:6px}
   <details><summary>Limitations</summary>
     <p>We analyze adjacent layer pairs only; some models (Qwen2.5-3B, Mistral-7B-v0.3) show several shifts. Evaluation is limited to multiple-choice QA and five model families. Open-ended generation is future work.</p>
   </details>
+</section>
+
+<section id="causal">
+  <h2>Is the cliff causal?</h2>
+  <p class="lead">Yes, at layer <i>L</i>+1. We remove the top-10 principal components there (all-but-the-top, about 0.05–1% of the dimensions), which raises isotropy and prevents the sudden drop. Components are estimated on 4,000 OpenBookQA samples; accuracy is measured on 1,000 unseen ones.</p>
+  <div class="grid2">
+    <div class="card">
+      <b>Accuracy drop by intervention layer</b>
+      <div class="tabs" style="margin-top:8px">
+        <button class="pill" data-d="0" type="button">L−2</button>
+        <button class="pill" data-d="1" type="button">L−1</button>
+        <button class="pill" data-d="2" type="button">L</button>
+        <button class="pill on" data-d="3" type="button">L+1 (cliff)</button>
+      </div>
+      <div id="dropbars"></div>
+      <p class="cap">Percentage points lost vs. the un-intervened model (Table 6). Only the layer of the cliff causes a large drop.</p>
+    </div>
+    <div class="card">
+      <b>The clusters disappear too</b>
+      <table style="margin-top:8px">
+        <tr><th>Model</th><th>ARI at L+1<br><small>natural → intervened</small></th><th>Early decoding %<br><small>natural → intervened</small></th></tr>
+        <tr><td>Qwen2.5-3B</td><td class="v">0.58 → 0.01</td><td class="v">34.7 → 26.6</td></tr>
+        <tr><td>Qwen3-8B</td><td class="v">0.94 → 0.00</td><td class="v">82.0 → 26.3</td></tr>
+        <tr><td>Llama-3.1-8B</td><td class="v">0.39 → 0.01</td><td class="v">65.3 → 29.6</td></tr>
+        <tr><td>Llama-3.2-3B</td><td class="v">0.20 → 0.00</td><td class="v">50.0 → 26.9</td></tr>
+        <tr><td>Mistral-7B-v0.3</td><td class="v">0.39 → 0.01</td><td class="v">65.5 → 27.2</td></tr>
+      </table>
+      <p class="cap">ARI of k-means clusters vs. the model's predictions (Tables 4–5).</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <b>Limitation: Qwen3-8B loses its clusters, then regains them</b>
+    <div class="tabs" style="margin-top:8px">
+      <button class="pill on" data-r="orig" type="button">Original model</button>
+      <button class="pill" data-r="int" type="button">Cliff prevented at L+1</button>
+    </div>
+    <svg id="rec" viewBox="0 0 520 230" role="img" aria-label="Layer-wise ARI and early-decoding accuracy for Qwen3-8B, original and with the intervention"></svg>
+    <p class="cap">Approximate redraw of Figure 8 (grey band = transition, layers 23→24).</p>
+    <div class="note"><b>Qwen3-8B is the exception.</b> The intervention erases its clusters at the cliff (ARI ≈ 0.00), but the model rebuilds them: ARI and early-decoding accuracy re-emerge around layer 28, about five layers later than in the original, and early decoding returns to ≈0.8. Final accuracy drops only 3.1 points (85.6% → 82.4%). The cliff is the most impactful decision site, but not necessarily the only one, and why some architectures can compensate remains open.</div>
+  </div>
 </section>
 
 <section id="bib">
@@ -311,7 +357,42 @@ document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tm=b.dataset.t;d
 $('#copy').onclick=async()=>{try{await navigator.clipboard.writeText($('#bibtex').textContent);$('#copy').textContent='Copied ✓'}catch(e){$('#copy').textContent='Select & copy'}setTimeout(()=>$('#copy').textContent='Copy',1600)};
 $('#bibBtn').onclick=()=>$('#bib').scrollIntoView({behavior:'smooth'});
 
-function all(){setLayer($('#layer').value);drawIso();bars();table()}
+/* ---------- Causality ---------- */
+const DROP={"Qwen2.5-3B":[.0071,.0030,.0162,.3788],"Qwen3-8B":[.0051,.0031,.0041,.0314],"Llama-3.1-8B":[.0142,.0213,.0223,.2627],
+  "Llama-3.2-3B":[.0111,.0141,.0131,.1484],"Mistral-7B-v0.3":[.0484,.0495,.0707,.3404]};   // Table 6, Remove condition
+let pos=3,dropBuilt=false;
+function dropBars(){
+  if(!dropBuilt){$('#dropbars').innerHTML=Object.keys(DROP).map((m,i)=>`<div class="bar"><span>${m}</span><span class="t"><i data-i="${i}" style="width:0;background:var(--knn)"></i></span><span data-v="${i}"></span></div>`).join('');dropBuilt=true}
+  Object.values(DROP).forEach((v,i)=>{const d=v[pos];$(`#dropbars i[data-i="${i}"]`).style.width=(d/.40*100)+'%';$(`#dropbars [data-v="${i}"]`).textContent='−'+(d*100).toFixed(1)})
+}
+document.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{pos=+b.dataset.d;document.querySelectorAll('[data-d]').forEach(x=>x.classList.toggle('on',x===b));dropBars()});
+
+/* Qwen3-8B recovery: approximate redraw of Figure 8 (schematic values) */
+const o_ari=l=>l<24?.005:.93+.012*Math.sin(l*1.3)-(l>32?.025*(l-32):0);
+const o_ed=l=>l<24?.27:l===27?.70:.83+.01*Math.sin(l);
+const I_ARI={25:.03,26:.09,27:.12,28:.78,29:.85,35:.55};
+const i_ari=l=>l in I_ARI?I_ARI[l]:l<25?.005:.83+.015*Math.sin(l*1.7);
+const i_ed=l=>l<27?.27:l===27?.30:l===28?.78:.80+.02*Math.sin(l*1.3);
+const RW=520,RH=230,RP={l:34,r:12,t:28,b:30};
+const RX=l=>RP.l+l/(L-1)*(RW-RP.l-RP.r),RY=v=>RH-RP.b-v*(RH-RP.t-RP.b);
+let rmode='orig';
+function drawRec(){
+  const path=f=>[...Array(L).keys()].map(l=>(l?'L':'M')+RX(l).toFixed(1)+' '+RY(f(l)).toFixed(1)).join('');
+  const line=(f,col,dash,op,cls)=>`<path d="${path(f)}" pathLength="1" fill="none" stroke="${col}" stroke-width="2.5" opacity="${op}"${dash?' stroke-dasharray="5 4"':''}${cls?` class="${cls}"`:''}/>`;
+  const A=css('--knn'),E=css('--iso');
+  let s=`<rect x="${RX(23)}" y="${RP.t}" width="${RX(24)-RX(23)}" height="${RH-RP.t-RP.b}" fill="${css('--accent')}" opacity=".18"/>`;
+  [0,.5,1].forEach(v=>{s+=`<line x1="${RP.l}" x2="${RW-RP.r}" y1="${RY(v)}" y2="${RY(v)}" stroke="${css('--line')}"/><text x="${RP.l-6}" y="${RY(v)+4}" text-anchor="end">${v}</text>`});
+  for(let i=0;i<L;i+=5)s+=`<text x="${RX(i)}" y="${RH-12}" text-anchor="middle">${i}</text>`;
+  s+=`<text x="${RW/2}" y="${RH-1}" text-anchor="middle">Layer</text>`;
+  s+=`<text x="${RP.l}" y="14" style="fill:${A};font-weight:700">— ARI (clusters vs. predictions)</text><text x="${RP.l+215}" y="14" style="fill:${E};font-weight:700">- - Early-decoding acc.</text>`;
+  if(rmode==='orig'){s+=line(o_ari,A,false,1,'draw')+line(o_ed,E,true,1,'fade')}
+  else{s+=line(o_ari,A,false,.2)+line(o_ed,E,true,.2)+line(i_ari,A,false,1,'draw')+line(i_ed,E,true,1,'fade');
+    s+=`<line x1="${RX(28)}" x2="${RX(28)}" y1="${RY(.78)}" y2="${RY(.45)}" stroke="${css('--muted')}" stroke-dasharray="2 3"/><text x="${RX(22)}" y="${RY(.6)}" text-anchor="end">clusters re-emerge ≈ layer 28 →</text>`}
+  $('#rec').innerHTML=s;
+}
+document.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{rmode=b.dataset.r;document.querySelectorAll('[data-r]').forEach(x=>x.classList.toggle('on',x===b));drawRec()});
+
+function all(){setLayer($('#layer').value);drawIso();bars();table();dropBars();drawRec()}
 all();requestAnimationFrame(frame);addEventListener('resize',drawIso);
 matchMedia('(prefers-color-scheme:dark)').addEventListener('change',all);
 </script>

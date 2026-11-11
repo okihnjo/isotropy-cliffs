@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Isotropy Cliffs: The Geometric Signature of Decision-Making in LLMs</title>
+<meta name="description" content="LLMs show a sharp drop in isotropy exactly where task-relevant clusters form. Its steepness predicts accuracy (Spearman up to -0.92).">
+<meta property="og:title" content="Isotropy Cliffs">
+<meta property="og:description" content="The geometric signature of decision-making in large language models.">
+<meta property="og:type" content="article">
+<meta property="og:image" content="assets/teaser.png">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+:root{
+  --bg:#fbfbfd;--card:#fff;--ink:#14161f;--muted:#5d6475;--line:#e4e6ee;
+  --iso:#2563eb;--knn:#dc2626;--accent:#4f46e5;--soft:#eef0fb;
+  --c0:#440154;--c1:#31688e;--c2:#35b779;--c3:#fde725; /* viridis, as in the paper's t-SNE */
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0e1017;--card:#161924;--ink:#eceef5;--muted:#9aa2b6;--line:#272b3a;
+  --iso:#6ea0ff;--knn:#ff7a7a;--accent:#8b87ff;--soft:#1b1f33;--c0:#6b2a8a}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:0 20px}
+a{color:var(--accent)}
+header{padding:64px 0 28px;text-align:center}
+h1{font-size:clamp(30px,5vw,48px);line-height:1.12;margin:0 0 6px;letter-spacing:-.02em}
+h1 span{background:linear-gradient(90deg,var(--iso),var(--knn));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--muted);font-size:19px;margin:0 0 22px}
+.authors{margin:0;font-size:18px}
+.authors sup,.affil sup{font-size:.7em}
+.affil{color:var(--muted);font-size:15px;margin:4px 0 22px}
+.btns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;gap:8px;align-items:center;padding:9px 18px;border-radius:999px;background:var(--ink);color:var(--bg);text-decoration:none;font-weight:600;font-size:15px;border:0;cursor:pointer}
+.btn.off{background:var(--soft);color:var(--muted);pointer-events:none}
+.tldr{background:var(--soft);border-left:4px solid var(--accent);padding:16px 20px;border-radius:10px;margin:28px 0}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:0 0 8px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+.stat b{display:block;font-size:28px;letter-spacing:-.02em}
+.stat small{color:var(--muted)}
+section{padding:34px 0;border-top:1px solid var(--line)}
+h2{font-size:28px;margin:0 0 6px;letter-spacing:-.01em}
+.lead{color:var(--muted);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}
+.grid2{display:grid;grid-template-columns:1.25fr 1fr;gap:14px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+.take{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.take .card b{display:block;margin-bottom:4px}
+.take .n{color:var(--accent);font-weight:800;font-size:13px;letter-spacing:.08em}
+svg text{fill:var(--muted);font-size:11px}
+.ctrl{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+.ctrl input[type=range]{flex:1;min-width:160px;accent-color:var(--accent)}
+.pill{padding:5px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-size:14px}
+.pill.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.readout{font-variant-numeric:tabular-nums;font-weight:700;min-width:7ch}
+.cap{color:var(--muted);font-size:14px;margin:8px 0 0}
+canvas{width:100%;display:block;border-radius:10px;background:var(--soft)}
+.bar{display:grid;grid-template-columns:120px 1fr 56px;gap:10px;align-items:center;margin:9px 0;font-size:15px}
+.bar .t{height:16px;background:var(--soft);border-radius:8px;overflow:hidden}
+.bar .t i{display:block;height:100%;border-radius:8px;transition:width .5s,background .3s}
+.bar span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left}
+td.v{font-variant-numeric:tabular-nums}
+pre{margin:0;white-space:pre-wrap;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--soft);padding:12px;border-radius:10px;overflow:auto}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+details{margin-top:12px}
+summary{cursor:pointer;font-weight:600}
+footer{padding:30px 0 60px;color:var(--muted);font-size:14px;text-align:center;border-top:1px solid var(--line)}
+figure{margin:0 0 20px}figure img{width:100%;border-radius:12px;border:1px solid var(--line)}
+figcaption{color:var(--muted);font-size:14px;margin-top:6px}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1><span>Isotropy Cliffs</span></h1>
+  <p class="sub">The Geometric Signature of Decision-Making in Large Language Models</p>
+  <p class="authors">Okan S. Coskun<sup>1</sup>, Florian Rottach<sup>1</sup>, Carsten Eickhoff<sup>1</sup>, William Rudman<sup>2</sup></p>
+  <p class="affil"><sup>1</sup>University of Tübingen &nbsp;·&nbsp; <sup>2</sup>The University of Texas at Austin</p>
+  <div class="btns">
+    <a class="btn" href="https://arxiv.org/abs/2608.00828">📄 arXiv</a>
+    <a class="btn" href="https://arxiv.org/pdf/2608.00828">PDF</a>
+    <a class="btn off" href="#">💻 Code (soon)</a>
+    <button class="btn" id="bibBtn" type="button">❝ BibTeX</button>
+  </div>
+</header>
+
+<figure id="teaser">
+  <img src="assets/teaser.png" alt="Figure 1: IsoScore and k-NN Score across layers of Qwen3-8B with t-SNE projections before and after layer 24" onerror="this.closest('figure').hidden=true">
+  <figcaption>Figure 1 from the paper: Qwen3-8B on HeadQA. At layer 23 the representations overlap; one layer later, class clusters appear.</figcaption>
+</figure>
+
+<div class="tldr"><b>TL;DR.</b> Across five LLMs, isotropy rises through the early layers, peaks, then <b>drops sharply</b> at a critical layer. Task-relevant clusters appear at that exact layer, and the <b>steepness of the drop predicts accuracy</b>.</div>
+
+<div class="stats">
+  <div class="stat"><b>5</b><small>open-weight LLMs</small></div>
+  <div class="stat"><b>4</b><small>MCQA benchmarks</small></div>
+  <div class="stat"><b>ρ = −0.84</b><small>cliff vs. accuracy (global)</small></div>
+  <div class="stat"><b>−0.92</b><small>best single model</small></div>
+</div>
+
+<section>
+  <h2>Three takeaways</h2>
+  <div class="take">
+    <div class="card"><span class="n">01</span><b>A cliff, not a slope</b>IsoScore climbs to a peak at layer <i>L</i>, then falls sharply at <i>L</i>+1. ID instead shows a gradual hump.</div>
+    <div class="card"><span class="n">02</span><b>Clusters form right there</b>The k-NN score jumps and CKA dips at the same layers: a one-step reorganization of the representation space.</div>
+    <div class="card"><span class="n">03</span><b>Steepness predicts accuracy</b>Bigger drops go with higher accuracy, across prompt formats and 0/2/4-shot, and beat intrinsic dimension as a predictor.</div>
+  </div>
+</section>
+
+<section id="cliff">
+  <h2>Watch the cliff</h2>
+  <p class="lead">Scrub through the layers of Qwen3-8B. The cliff sits between layers 23 and 24.</p>
+  <div class="grid2">
+    <div class="card">
+      <svg id="chart" viewBox="0 0 520 250" role="img" aria-label="Schematic of IsoScore and k-NN score across layers"></svg>
+    </div>
+    <div class="card"><canvas id="cloud" width="420" height="300" aria-label="Point cloud that separates into four clusters after layer 24"></canvas></div>
+  </div>
+  <div class="ctrl">
+    <button class="pill" id="play" type="button">▶ Play</button>
+    <input id="layer" type="range" min="0" max="35" value="23" aria-label="Layer">
+    <span class="readout">Layer <span id="layerN">23</span></span>
+  </div>
+  <p class="cap">Curves are a normalized schematic of the Figure 1 trend. The point cloud is simulated to resemble the paper's Qwen3-8B t-SNE (mixed blob at layer L, four touching clusters at L+1, Acc 0.84); positions are not real t-SNE coordinates.</p>
+</section>
+
+<section>
+  <h2>What is isotropy?</h2>
+  <p class="lead">Isotropy measures how evenly variance is spread over directions. IsoScore is 1 for a perfectly round cloud and near 0 when variance collapses onto a few directions.</p>
+  <div class="grid2">
+    <div class="card"><canvas id="iso" width="420" height="260" aria-label="Gaussian point cloud that stretches as the slider moves"></canvas></div>
+    <div class="card">
+      <p style="margin-top:0">Drag to concentrate the variance. A drop in isotropy at the cliff means the model <i>sacrifices</i> uniformity to compress information into a task-relevant, lower-dimensional manifold.</p>
+      <div class="ctrl"><span>Isotropic</span><input id="aniso" type="range" min="0" max="100" value="0" aria-label="Anisotropy"><span>Concentrated</span></div>
+      <p class="cap" id="isoRead"></p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Does the cliff predict accuracy?</h2>
+  <p class="lead">Spearman correlation with task accuracy per model (Table 1). The isotropy cliff is consistently strong; intrinsic dimension is not.</p>
+  <div class="card">
+    <div class="tabs">
+      <button class="pill on" data-m="li" type="button">Isotropy cliff (ΔLog IsoScore)</button>
+      <button class="pill" data-m="id" type="button">Intrinsic dimension (ΔID)</button>
+    </div>
+    <div id="bars"></div>
+    <p class="cap">Bar length = |ρ|. Transition layers L → L+1 were chosen where the isotropy cliff, k-NN jump and CKA dip coincide.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Robust to prompt format</h2>
+  <p class="lead">Four formats with identical content but different surface syntax. When a format breaks accuracy, the cliff disappears too.</p>
+  <div class="grid2">
+    <div class="card">
+      <div class="tabs" id="ptabs"></div>
+      <pre id="ptxt"></pre>
+    </div>
+    <div class="card">
+      <div class="tabs">
+        <button class="pill on" data-t="acc" type="button">Accuracy %</button>
+        <button class="pill" data-t="d" type="button">ΔIsoScore</button>
+      </div>
+      <table id="tbl"></table>
+      <p class="cap">OpenBookQA, zero-shot (Table 2). Example: Qwen2.5-3B with format 2 drops to 43.8% and its ΔIsoScore is +.02, i.e. no cliff.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Why it matters</h2>
+  <p>The cliff marks where the model becomes <i>decisive</i>. Just before it, representations are most evenly spread, which may give more directional freedom for <b>activation steering</b>. These layers are also natural candidates for fine-tuning or freezing.</p>
+  <details><summary>Limitations</summary>
+    <p>We analyze adjacent layer pairs only; some models (Qwen2.5-3B, Mistral-7B-v0.3) show several shifts. Evaluation is limited to multiple-choice QA and five model families. Open-ended generation is future work.</p>
+  </details>
+</section>
+
+<section id="bib">
+  <h2>BibTeX</h2>
+  <pre id="bibtex">@article{coskun2026isotropy,
+  title   = {Isotropy Cliffs: The Geometric Signature of Decision-Making in Large Language Models},
+  author  = {Coskun, Okan S. and Rottach, Florian and Eickhoff, Carsten and Rudman, William},
+  journal = {arXiv preprint arXiv:2608.00828},
+  year    = {2026}
+}</pre>
+  <div class="ctrl"><button class="btn" id="copy" type="button">Copy</button></div>
+</section>
+
+</div>
+<footer>© The authors · Built as a static page for GitHub Pages</footer>
+
+<script>
+const $=s=>document.querySelector(s), css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function rng(seed){return()=>((seed=Math.imul(seed^seed>>>15,1|seed)+0x6D2B79F5|0)>>>0)/4294967296}
+function gauss(r){return Math.sqrt(-2*Math.log(r()||1e-9))*Math.cos(2*Math.PI*r())}
+function setup(c){const d=devicePixelRatio||1,w=c.clientWidth,h=c.clientWidth*c.height/c.width;c.width=w*d;c.height=h*d;c.style.height=h+'px';const x=c.getContext('2d');x.scale(d,d);return{x,w,h}}
+
+/* ---------- Layer scrubber (schematic, Qwen3-8B trend) ---------- */
+const L=36,CLIFF=23;
+const iso=l=>l<=CLIFF?0.15+0.8*Math.pow(l/CLIFF,.9)+.03*Math.sin(l*1.7):.35+.012*(l-24)+(l>=32?.06*(l-31):0)+.02*Math.sin(l*2);
+const knn=l=>l<CLIFF?.04+.002*l:l===CLIFF?.08:.62+.02*Math.sin(l);
+const isoV=[...Array(L).keys()].map(iso), knnV=[...Array(L).keys()].map(knn);
+const W=520,H=250,P={l:36,r:12,t:14,b:30};
+const X=l=>P.l+l/(L-1)*(W-P.l-P.r), Y=v=>H-P.b-v*(H-P.t-P.b);
+function drawChart(l){
+  const path=a=>a.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join('');
+  let s=`<rect x="${X(23)}" y="${P.t}" width="${X(24)-X(23)}" height="${H-P.t-P.b}" fill="${css('--accent')}" opacity=".18"/>`;
+  s+=`<line x1="${P.l}" x2="${W-P.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${css('--line')}"/>`;
+  for(let i=0;i<L;i+=5)s+=`<text x="${X(i)}" y="${H-10}" text-anchor="middle">${i}</text>`;
+  s+=`<text x="${W/2}" y="${H}" text-anchor="middle" font-size="11">Layer</text>`;
+  s+=`<path d="${path(isoV)}" fill="none" stroke="${css('--iso')}" stroke-width="2.5"/>`;
+  s+=`<path d="${path(knnV)}" fill="none" stroke="${css('--knn')}" stroke-width="2.5"/>`;
+  s+=`<text x="${X(8)}" y="${Y(.7)}" fill="${css('--iso')}" style="fill:${css('--iso')};font-weight:700">IsoScore</text>`;
+  s+=`<text x="${X(28)}" y="${Y(.76)}" style="fill:${css('--knn')};font-weight:700">k-NN score</text>`;
+  s+=`<line x1="${X(l)}" x2="${X(l)}" y1="${P.t}" y2="${H-P.b}" stroke="${css('--ink')}" stroke-dasharray="4 3"/>`;
+  s+=`<circle cx="${X(l)}" cy="${Y(isoV[l])}" r="5" fill="${css('--iso')}"/><circle cx="${X(l)}" cy="${Y(knnV[l])}" r="5" fill="${css('--knn')}"/>`;
+  $('#chart').innerHTML=s;
+}
+/* Modeled on the paper's Qwen3-8B t-SNE (layers L -> L+1, Acc 0.84).
+   Every layer has its own state: the blob reshapes and drifts with IsoScore before the cliff,
+   the clusters tighten and drift after it. Positions are simulated. */
+const N=1500,r1=rng(11),CEN=[[-.42,.36],[.42,.32],[-.40,-.34],[.40,-.42]]; // purple, blue, green, yellow
+const pts=[...Array(N)].map((_,i)=>{const c=i%4,lobe=r1()<.5?-1:1,
+  t=r1()<.16?(c+1+Math.floor(r1()*3))%4:c;            // ~16% land in the wrong cluster (Acc 0.84)
+  const p={c,t,lobe,ph1:r1()*6.283,ph2:r1()*6.283,rate:.07+r1()*.12,gx:gauss(r1),gy:gauss(r1),hx:gauss(r1),hy:gauss(r1),dx:0,dy:0};
+  p.x=lobe*.14+p.gx*.3;p.y=p.gy*.24;return p});
+function targetPos(p,l){
+  if(l<=CLIFF){const s=iso(l);                          // blob: rounder and wider as isotropy rises, drifting layer to layer
+    return[p.lobe*.14*(.6+s)+p.gx*(.24+.14*s)+.05*Math.sin(.55*l+p.ph1),
+           p.lobe*.04+p.gy*(.19+.10*s)+.04*Math.cos(.5*l+p.ph2)]}
+  const k=clamp((l-24)/11,0,1),tight=1-.22*k,sep=.92+.08*k,[cx,cy]=CEN[p.t];   // clusters: tighten and settle
+  return[cx*sep+.03*Math.sin(.6*l+p.t*1.3)+p.hx*.17*tight+.02*Math.sin(.8*l+p.ph1),
+         cy*sep+.03*Math.cos(.6*l+p.t)+p.hy*.16*tight+.02*Math.cos(.7*l+p.ph2)]}
+let target=0,cur=0,curLayer=23,cv=null;const cols=()=>[css('--c0'),css('--c1'),css('--c2'),css('--c3')];
+const still=matchMedia('(prefers-reduced-motion:reduce)').matches;
+function drawCloud(){
+  const c=$('#cloud');if(!cv||cv.cw!==c.clientWidth){cv=setup(c);cv.cw=c.clientWidth}else cv.x.clearRect(0,0,cv.w,cv.h);
+  const{x,w,h}=cv,cc=cols(),k=h/2*.95,ink=css('--ink'),mu=css('--muted');
+  pts.forEach(p=>{x.fillStyle=cc[p.c];x.globalAlpha=.85;x.beginPath();x.arc(w/2+(p.x+p.dx)*k,h/2+(p.y+p.dy)*k,2.1,0,7);x.fill()});
+  x.globalAlpha=1;x.font='600 13px system-ui,sans-serif';x.fillStyle=ink;
+  x.fillText(curLayer===CLIFF?'Layer 23 (L)':curLayer===CLIFF+1?'Layer 24 (L+1)':'Layer '+curLayer,12,22);
+  if(cur>.9){x.font='13px system-ui,sans-serif';x.fillStyle=mu;x.textAlign='right';x.fillText('Acc 0.84',w-12,h-12);x.textAlign='left'}
+}
+function frame(ts){                                       // points glide to each layer's state, with a faint shimmer
+  const t=ts/1000;cur+=(target-cur)*.1;
+  pts.forEach(p=>{const[tx,ty]=targetPos(p,curLayer);p.x+=(tx-p.x)*p.rate;p.y+=(ty-p.y)*p.rate;
+    if(!still){p.dx=.007*Math.sin(t*1.4+p.ph1);p.dy=.007*Math.cos(t*1.2+p.ph2)}});
+  drawCloud();requestAnimationFrame(frame)}
+function setLayer(l){l=+l;curLayer=l;$('#layer').value=l;$('#layerN').textContent=l;drawChart(l);target=clamp((knnV[l]-.04)/.6,0,1)}
+$('#layer').oninput=e=>{stop();setLayer(e.target.value)};
+let timer=null;const stop=()=>{if(timer){clearInterval(timer);timer=null;$('#play').textContent='▶ Play'}};
+$('#play').onclick=()=>{if(timer)return stop();let l=+$('#layer').value>=35?0:+$('#layer').value;setLayer(l);
+  $('#play').textContent='❚❚ Pause';timer=setInterval(()=>{l++;if(l>35){stop();return}setLayer(l)},260)};
+
+/* ---------- Isotropy explainer ---------- */
+const r2=rng(3),zs=[...Array(500)].map(()=>[gauss(r2),gauss(r2)]);
+function drawIso(){
+  const a=$('#aniso').value/100,{x,w,h}=setup($('#iso')),sx=1,sy=1-.93*a,th=.5,k=Math.min(w,h)*.19;
+  x.fillStyle=css('--accent');x.globalAlpha=.75;
+  zs.forEach(([u,v])=>{const px=u*sx,py=v*sy,rx=px*Math.cos(th)-py*Math.sin(th),ry=px*Math.sin(th)+py*Math.cos(th);
+    x.beginPath();x.arc(w/2+rx*k,h/2+ry*k,2.3,0,7);x.fill()});
+  const e=sy*sy;$('#isoRead').textContent=`Variance along the two axes = 1 : ${e.toFixed(2)}  →  ${a<.05?'nearly isotropic':a>.8?'strongly concentrated':'increasingly concentrated'}`;
+}
+$('#aniso').oninput=drawIso;
+
+/* ---------- Correlation bars (Table 1) ---------- */
+const T1=[["Qwen2.5-3B","26→27",-.78,.31],["Llama-3.2-3B","14→15",-.92,.00],["Qwen3-8B","23→24",-.90,-.09],
+  ["Llama-3.1-8B","16→17",-.82,-.25],["Mistral-7B-v0.3","18→19",-.92,.40],["All models",null,-.84,.03]];
+let mode='li';
+function bars(){
+  $('#bars').innerHTML=T1.map(r=>{const v=mode==='li'?r[2]:r[3];
+    return`<div class="bar"><span>${r[0]}${r[1]?`<br><small style="color:var(--muted)">layers ${r[1]}</small>`:''}</span>
+    <span class="t"><i style="width:${Math.abs(v)*100}%;background:${mode==='li'?css('--iso'):css('--muted')}"></i></span><span>${v>0?'+':v<0?'−':''}${Math.abs(v).toFixed(2)}</span></div>`}).join('');
+}
+document.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll('[data-m]').forEach(x=>x.classList.toggle('on',x===b));bars()});
+
+/* ---------- Prompt formats + Table 2 subset ---------- */
+const PF=[["0 · Standard","Question: What do plants need to make food?\nChoices:\nA: water and sunlight\nB: only water\nC: only sunlight\nD: only air\nAnswer:"],
+["1 · Prose","What do plants need to make food?\nChoose from: (A) water and sunlight, (B) only water,\n(C) only sunlight, (D) only air. The answer is"],
+["2 · Delimited","QUESTION: What do plants need to make food? || CHOICES: A=water and sunlight;\nB=only water; C=only sunlight; D=only air || ANSWER:"],
+["3 · Compact","Question: What do plants need to make food?\nChoices: A: water and sunlight\nB: only water\nC: only sunlight\nD: only air\nAnswer:"]];
+$('#ptabs').innerHTML=PF.map((p,i)=>`<button class="pill${i?'':' on'}" data-p="${i}" type="button">${p[0]}</button>`).join('');
+const showP=i=>{$('#ptxt').textContent=PF[i][1];document.querySelectorAll('[data-p]').forEach(b=>b.classList.toggle('on',+b.dataset.p===i))};
+document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>showP(+b.dataset.p));showP(0);
+const OBQA={ // OpenBookQA, 0-shot: accuracy and ΔIsoScore for formats 0..3
+ "Qwen2.5-3B":[[77.3,60.5,43.8,78.5],[-.26,.05,.02,-.08]],"Qwen3-8B":[[83.6,81.6,80.1,83.8],[-.58,-.34,-.53,-.55]],
+ "Llama-3.1-8B":[[70.7,58.6,63.9,73.8],[-.21,.06,-.00,-.41]],"Llama-3.2-3B":[[60.5,37.1,52.2,65.1],[-.25,.00,-.03,-.54]],
+ "Mistral-7B-v0.3":[[69.9,52.3,60.1,69.9],[-.08,-.02,-.02,-.08]]};
+let tm='acc';
+function table(){
+  let h='<tr><th>Model</th>'+[0,1,2,3].map(i=>`<th>F${i}</th>`).join('')+'</tr>';
+  for(const[m,[a,d]]of Object.entries(OBQA)){h+=`<tr><td>${m}</td>`;
+    (tm==='acc'?a:d).forEach(v=>{const t=tm==='acc'?clamp((v-35)/52,0,1):clamp(-v/.6,0,1);
+      h+=`<td class="v" style="background:color-mix(in srgb,${css('--accent')} ${Math.round(t*55)}%,transparent)">${tm==='acc'?v.toFixed(1):(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(2).replace(/^0/,'')}</td>`});
+    h+='</tr>'}
+  $('#tbl').innerHTML=h;
+}
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{tm=b.dataset.t;document.querySelectorAll('[data-t]').forEach(x=>x.classList.toggle('on',x===b));table()});
+
+/* ---------- BibTeX ---------- */
+$('#copy').onclick=async()=>{try{await navigator.clipboard.writeText($('#bibtex').textContent);$('#copy').textContent='Copied ✓'}catch(e){$('#copy').textContent='Select & copy'}setTimeout(()=>$('#copy').textContent='Copy',1600)};
+$('#bibBtn').onclick=()=>$('#bib').scrollIntoView({behavior:'smooth'});
+
+function all(){setLayer($('#layer').value);drawIso();bars();table()}
+all();requestAnimationFrame(frame);addEventListener('resize',drawIso);
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',all);
+</script>
+</body>
+</html>

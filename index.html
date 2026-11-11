@@ -185,9 +185,20 @@ figcaption{color:var(--muted);font-size:14px;margin-top:6px}
 
 <section>
   <h2>Why it matters</h2>
-  <p>The cliff marks where the model becomes <i>decisive</i>. Just before it, representations are most evenly spread, which may give more directional freedom for <b>activation steering</b>. These layers are also natural candidates for fine-tuning or freezing.</p>
+  <p class="lead">The isotropy cliff gives a simple geometric handle on where LLMs commit to an answer.</p>
+  <ul style="margin:0;padding-left:20px">
+    <li style="margin-bottom:6px"><b>A tool for locating critical layers.</b> The isotropy drop, the k-NN jump and the CKA dip coincide, which points to the layers where task-relevant structure forms.</li>
+    <li style="margin-bottom:6px"><b>A sharper lens than intrinsic dimension.</b> ID rises and then compresses gradually (a "hunchback"). Isotropy instead drops abruptly, lines up better with the emergence of clusters, and its steepness predicts accuracy better.</li>
+    <li style="margin-bottom:6px"><b>The answer becomes readable at the cliff.</b> Decoding the answer directly from the hidden state is near chance just before it and jumps right after (Qwen3-8B: 26.8% → 82.0%, Llama-3.1-8B: 29.3% → 65.3%).</li>
+    <li><b>Not a prompt artifact.</b> The cliff shows up across four prompt formats and 0/2/4-shot in-context learning, so it looks like a general feature of how these models process the question.</li>
+  </ul>
   <details><summary>Limitations</summary>
-    <p>We analyze adjacent layer pairs only; some models (Qwen2.5-3B, Mistral-7B-v0.3) show several shifts. Evaluation is limited to multiple-choice QA and five model families. Open-ended generation is future work.</p>
+    <ul style="padding-left:20px">
+      <li><b>Finding the transition layers.</b> We identify them by inspecting the layer-wise profiles and the CKA change. This is not yet a fully deterministic criterion.</li>
+      <li><b>Adjacent layers only.</b> Some models (Qwen2.5-3B, Mistral-7B-v0.3) show several shifts, so broader layer spans may reveal multi-stage restructuring.</li>
+      <li><b>Scope.</b> Five model families and multiple-choice QA. Open-ended generation is the next step.</li>
+      <li><b>Qwen3 recovery.</b> Qwen3-8B rebuilds its clusters after the intervention (see the last chapter). Why some architectures compensate and others do not is still open.</li>
+    </ul>
   </details>
 </section>
 
